@@ -223,8 +223,6 @@ public class WeenieBot
         try
         {
             guild.getAudioManager().closeAudioConnection();
-
-            ReleaseLock();
         }
         catch (IllegalStateException iex)
         {
@@ -234,8 +232,11 @@ public class WeenieBot
         }
         catch (Exception ex)
         {
+            ReleaseLock();
             return false;
         }
+
+        ReleaseLock();
 
         return true;
     }
