@@ -1,93 +1,91 @@
 package Listeners;
-import CommandStuff.Command;
-import CommandStuff.CommandType;
+
+import Commands.*;
+import Main.PropertyLoader;
 import Main.WeenieBot;
 import net.dv8tion.jda.core.entities.ChannelType;
 import net.dv8tion.jda.core.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.core.exceptions.PermissionException;
 import net.dv8tion.jda.core.hooks.ListenerAdapter;
-import net.dv8tion.jda.core.utils.SimpleLog;
 
 public class ChatListener extends ListenerAdapter
 {
-	private String 		toggleChar;
-	private int			maxMessageSize;
-	private SimpleLog 	log;
-	
-	public ChatListener(String toggleChar, int maxMessageSize)
-	{
-		this.toggleChar 	= toggleChar;
-		this.maxMessageSize = maxMessageSize;
-		log = SimpleLog.getLog("ChatListener");
-	}
-	
-	@Override
-	public void onMessageReceived(MessageReceivedEvent e)
-	{		
-		String user 	= e.getAuthor().getName();
-		String message 	= e.getMessage().getContent().toLowerCase();
-		
-		if (e.getAuthor().isBot())
-			return;
-		else if (!message.startsWith(toggleChar))
-			return;
-		else if (message.length() > maxMessageSize)
-		{
-			log.info("Message has exceeded max length. <" + maxMessageSize + ">");
-			WeenieBot.getBot().sendMessage(e, "Message has exceeded max length. <" + maxMessageSize + ">");
-			return;
-		}
-		
-		log.info(user + " gave command: " + message);
-		
-		// Strip the toggle character off the front.
-		message = message.substring(1);
-		
-		
-		// Figure out which command we've been sent.
-		if (message.startsWith("shutdown"))
-		{
-			deleteMessage(e);
-			
-			if (user.equalsIgnoreCase(WeenieBot.getBot().getProperties().getProperty("admin")))
-				WeenieBot.getBot().proccessUrgentCommand(new Command(user, message, e, CommandType.SHUTDOWN));
-			else
-				log.info(user + " is not an admin.");
-		}
-		else if (message.startsWith("stop"))
-			WeenieBot.getBot().proccessUrgentCommand(new Command(user, message, e, CommandType.STOP));
-		else if (message.startsWith("reset"))
-			WeenieBot.getBot().proccessUrgentCommand(new Command(user, message, e, CommandType.RESET));
-		else if (message.startsWith("reload"))
-			WeenieBot.getBot().addCommand(new Command(user, message, e, CommandType.RELOAD_LIBRARY));
-		else if (message.startsWith("random"))
-			WeenieBot.getBot().addCommand(new Command(user, message, e, CommandType.RANDOM));
-		else if (message.startsWith("volume"))
-			WeenieBot.getBot().addCommand(new Command(user, message, e, CommandType.VOLUME));
-		else if (message.startsWith("list"))
-			WeenieBot.getBot().addCommand(new Command(user, message, e, CommandType.LIST));
-		else if (message.length() > 0)
-			WeenieBot.getBot().addCommand(new Command(user, message, e, CommandType.PLAY));
-		else
-			log.info("No command supplied.");
-			
-		deleteMessage(e);
-	}
-	
-	
-	// Function that deletes the command message sent.
-	private void deleteMessage(MessageReceivedEvent e)
-	{
-		if (!e.isFromType(ChannelType.PRIVATE))
-		{
-			try
-			{
-				e.getMessage().deleteMessage().queue();
-			}
-			catch (PermissionException pe)
-			{
-				log.info("WeenieBot does not have permission to delete messages.");
-			}
-		}
-	}
+    private String  toggleChar;
+    private int     maxMessageSize;
+
+    public ChatListener(String toggleChar, int maxMessageSize)
+    {
+        this.toggleChar         = toggleChar;
+        this.maxMessageSize     = maxMessageSize;
+    }
+
+    @Override
+    public void onMessageReceived(MessageReceivedEvent e)
+    {
+        String user = e.getAuthor().getId();
+        String message = e.getMessage().getContentStripped().toLowerCase();
+
+        if (e.getAuthor().isBot())
+            return;
+        else if (!message.startsWith(toggleChar))
+            return;
+        else if (message.length() > maxMessageSize)
+        {
+            WeenieBot.log.warn("Message has exceeded max length: <" + maxMessageSize + ">");
+            WeenieBot.getInstance().sendMessage(e, "Message has exceeded max length: <" + maxMessageSize + ">");
+            return;
+        }
+
+        WeenieBot.log.info(user + " [" + e.getAuthor().getName() + "] gave command: " + message);
+
+        // Strip the toggle character off the front of the message
+        message = message.substring(1);
+
+        // Special case for shutdown command
+        if (message.startsWith("shutdown"))
+        {
+            if (user.equals(PropertyLoader.getProperties().getProperty("admin")))
+            {
+                deleteMessage(e);
+                WeenieBot.getInstance().processUrgentCommand(new ShutdownCommand(user, message, e));
+            }
+            else
+            {
+                WeenieBot.log.warn(user + " [" + e.getAuthor().getName() + "] is not an admin. Ignoring command.");
+            }
+        }
+        else if (message.startsWith("stop"))
+            WeenieBot.getInstance().processUrgentCommand(new StopCommand(user, message, e));
+        else if (message.startsWith("reset"))
+            WeenieBot.getInstance().processUrgentCommand(new ResetCommand(user, message, e));
+        else if (message.startsWith("reload"))
+            WeenieBot.getInstance().addCommand(new ReloadCommand(user, message, e));
+        else if (message.startsWith("random"))
+            WeenieBot.getInstance().addCommand(new RandomCommand(user, message, e));
+        else if (message.startsWith("volume"))
+            WeenieBot.getInstance().addCommand(new VolumeCommand(user,message, e));
+        else if (message.startsWith("list"))
+            WeenieBot.getInstance().addCommand(new ListCommand(user, message, e));
+        else if (message.length() > 0)
+            WeenieBot.getInstance().addCommand(new PlayCommand(user, message, e));
+        else
+            WeenieBot.log.warn("No command supplied...");
+
+        deleteMessage(e);
+    }
+
+    private void deleteMessage(MessageReceivedEvent e)
+    {
+        if (!e.isFromType(ChannelType.PRIVATE))
+        {
+            try
+            {
+                e.getMessage().delete().complete();
+            }
+            catch (PermissionException pe)
+            {
+                WeenieBot.log.warn("Bot does not have permission to delete messages.");
+            }
+        }
+    }
 }
